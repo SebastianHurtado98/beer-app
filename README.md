@@ -50,10 +50,10 @@ Correr tests en el backend:
 - Base de datos: Para agilizar mi desarrollo y validar el concepto rápidamente, elegí SQLite como base de datos.
 
 ## Supuestos
-He asumido que es posible identificar a los clientes mediante un ID, ya sea que utilicen sus nombres o que el establecimiento implemente algún sistema de identificación como pulseras de pago o dispositivos que asignen un ID de cliente único.
+He asumido que es posible identificar a los clientes mediante un ID.
 
 ## TODO
-- Agrega documentación al API.
+- Agrega documentación al API con Swagger
 - Consideraciones para moverlo a producción.
 - Optimizar consultas según cómo se vaya a usar el resto de endpoints, a nivel de índices o queries.
 
