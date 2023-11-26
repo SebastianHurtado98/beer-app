@@ -5,9 +5,10 @@ from django.db.models import Sum, F
 class BillingService:
     @staticmethod
     def calculate_total_per_customer(customer_id):
-        return Order.objects.filter(customer_id=customer_id, billed=False).annotate(
+        result = Order.objects.filter(customer_id=customer_id, billed=False).annotate(
             total_price=F('beer__price') * F('quantity')
         ).aggregate(total_sum=Sum('total_price'))['total_sum']
+        return result if result else 0
     
     @staticmethod
     def validate_customer_ids(customer_ids):
@@ -19,7 +20,11 @@ class BillingService:
     def create_individual_bills(customer_ids):
         try:
             BillingService.validate_customer_ids(customer_ids)
-            for customer_id in customer_ids:
+            customers_with_pending_orders = Order.objects.filter(
+                customer_id__in=customer_ids, 
+                billed=False
+            ).values_list('customer_id', flat=True).distinct()
+            for customer_id in customers_with_pending_orders:
                 total = BillingService.calculate_total_per_customer(customer_id)
                 Bill.objects.create(customer_id=customer_id, total=total, paid=False, payment_type='IND')
                 Order.objects.filter(customer_id=customer_id).update(billed=True)
