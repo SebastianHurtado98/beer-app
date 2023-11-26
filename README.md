@@ -30,7 +30,7 @@ Consideraciones adicionales:
 Nice to have:
 - Agrega documentación al API.
 - Consideraciones para moverlo a producción.
-- Optimizar consultas.
+- Optimizar consultas según cómo se vaya a usar el resto de endpoints.
 
 ## Diseño
 ### Endpoints de la API
@@ -60,9 +60,9 @@ Opciones actuales: generar 3 facturas iguales o 3 facturas distintas.
 Devuelve el total a pagar, sumando las facturas pendientes del usuario.
 Utilizado por el frontend para mostrar el monto a pagar.
 
-#### Realizar Pago (POST api/bill/pay/id=[user1, user2, user3]):
+#### Realizar Pago (POST api/bill/pay/user_id):
 
-Permite cancelar la cuenta o cuentas seleccionadas.
+Permite cancelar la cuenta o cuentas pendientes por usuario.
 Endpoint utilizado por el frontend para ejecutar el pago.
 
 ### Consideraciones:
