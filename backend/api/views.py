@@ -1,8 +1,10 @@
 from rest_framework import viewsets, permissions, views, status
 from rest_framework.response import Response
+from rest_framework.exceptions import APIException
 from .models import Customer, Beer, Order, Bill
 from .serializers import CustomerSerializer, BeerSerializer, OrderSerializer, BillSerializer
-from django.db.models import Sum, F
+from .exceptions import HTTPExceptionUserNotFound, HTTPExceptionBillsNotFound, HTTPExceptionInvalidPaymentTypeGroup, HTTPExceptionCustomerRequired, BillingError
+from .services import BillingService
 
 class CustomerViewSet(viewsets.ModelViewSet):
     serializer_class = CustomerSerializer
@@ -44,31 +46,29 @@ class OrderViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(billed=billed)
 
         return queryset
-    
+
 class GenerateBillView(views.APIView):
     def post(self, request):
-        customer_ids = request.data.get('customer_ids')
-        group_type = request.data.get('group', 'IND')
-        orders = Order.objects.filter(customer_id__in=customer_ids, billed=False)
-
-        if group_type == 'IND':
-            for customer_id in customer_ids:
-                total = Order.objects.filter(customer_id=customer_id, billed=False).annotate(
-                    total_price=F('beer__price') * F('quantity')
-                ).aggregate(total_sum=Sum('total_price'))['total_sum']
-                Bill.objects.create(customer_id=customer_id, total=total, paid=False, payment_type='IND')
-                orders.filter(customer_id=customer_id).update(billed=True)
-            response_data = {'message': 'Facturas individuales creadas exitosamente.'}
-        elif group_type == 'GRP':
-            total_sum = orders.annotate(total_price=F('beer__price') * F('quantity')).aggregate(total_sum=Sum('total_price'))['total_sum']
-            total_per_user = total_sum / len(customer_ids)
-            for customer_id in customer_ids:
-                Bill.objects.create(customer_id=customer_id, total=total_per_user, paid=False, payment_type='GRP')
-                orders.filter(customer_id=customer_id).update(billed=True)
-            response_data = {'message': 'Facturas grupales creadas exitosamente.'}
-        else:
-            return Response({'error': 'Tipo de grupo no válido.'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        try:
+            customer_ids = request.data.get('customer_ids')
+            if not customer_ids:
+                raise HTTPExceptionCustomerRequired()
+            group_type = request.data.get('group', 'IND')
+            if group_type not in ['IND', 'GRP']:
+                raise HTTPExceptionInvalidPaymentTypeGroup()
+            if group_type == 'IND':
+                BillingService.create_individual_bills(customer_ids)
+                response_data = {'message': 'Facturas individuales creadas exitosamente.'}
+            else:
+                BillingService.create_group_bills(customer_ids)
+                response_data = {'message': 'Facturas grupales creadas exitosamente.'}
+            return Response(response_data, status=status.HTTP_201_CREATED)
+        except BillingError as e:
+            return Response({'error': str(e)}, status=e.status_code)
+        except (HTTPExceptionCustomerRequired, HTTPExceptionInvalidPaymentTypeGroup) as e:
+            return Response({'error': e.message}, status=e.status_code)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class BillListView(views.APIView):
     def get(self, request):
@@ -84,13 +84,20 @@ class BillListView(views.APIView):
             paid = paid == 'True'
             queryset = queryset.filter(paid=paid)
         serializer = BillSerializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
 
 class PayBillView(views.APIView):
     def post(self, request, customer_id):
-        bills = Bill.objects.filter(customer_id=customer_id, paid=False)
-        if not bills:
-            return Response({'message': 'No hay facturas pendientes para el usuario.'}, status=status.HTTP_404_NOT_FOUND)
-        bills.update(paid=True)
-        return Response({'message': 'Pago realizado exitosamente.'}, status=status.HTTP_200_OK)
+        try:
+            if not Customer.objects.filter(id=customer_id).exists():
+                raise HTTPExceptionUserNotFound()
+            bills = Bill.objects.filter(customer_id=customer_id, paid=False)
+            if not bills:
+                raise HTTPExceptionBillsNotFound()
+            bills.update(paid=True)
+            return Response({'message': 'Pago realizado exitosamente.'}, status=status.HTTP_200_OK)
+        except (HTTPExceptionUserNotFound, HTTPExceptionBillsNotFound) as e:
+            return Response({'message': e.message}, status=e.status_code)
+        except Exception as e:
+            return Response({'message': 'Error interno del servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

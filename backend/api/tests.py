@@ -29,8 +29,10 @@ class PaymentTests(TestCase):
         self.assertEqual(unpaid_bills, 2)
 
         # Realizar pago
-        self.client.post(reverse('pay-bill', kwargs={'customer_id': 1}))
-        self.client.post(reverse('pay-bill', kwargs={'customer_id': 2}))
+        response = self.client.post(reverse('pay-bill', kwargs={'customer_id': 1}))
+        self.assertEqual(response.status_code, 200)
+        response = self.client.post(reverse('pay-bill', kwargs={'customer_id': 2}))
+        self.assertEqual(response.status_code, 200)
 
         # Verificar bills pendientes
         unpaid_bills = Bill.objects.filter(paid=False).count()
@@ -51,8 +53,10 @@ class PaymentTests(TestCase):
         self.assertEqual(unpaid_bills, 2)
 
         # Realizar pago
-        self.client.post(reverse('pay-bill', kwargs={'customer_id': 1}))
-        self.client.post(reverse('pay-bill', kwargs={'customer_id': 2}))
+        response = self.client.post(reverse('pay-bill', kwargs={'customer_id': 1}))
+        self.assertEqual(response.status_code, 200)
+        response = self.client.post(reverse('pay-bill', kwargs={'customer_id': 2}))
+        self.assertEqual(response.status_code, 200)
 
         # Verificar bills pendientes
         unpaid_bills = Bill.objects.filter(paid=False).count()
